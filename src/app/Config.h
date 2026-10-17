@@ -16,6 +16,7 @@ inline const QString UploadFull = QStringLiteral("upload_full");
 
 struct Config {
     QList<HotkeyBinding> hotkeys;
+    bool replaceDesktopKeys = false; // may take keys (Print) from GNOME's screenshot tool
 
     bool autoCopyLink = true;
     bool autoCloseUploadWindow = true;

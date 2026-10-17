@@ -1,5 +1,6 @@
 #include "app/HotkeyManager.h"
 
+#include "app/GnomeShortcut.h"
 #include "app/PortalRequest.h"
 #include "capture/ScreenGrabber.h"
 
@@ -11,6 +12,7 @@
 #include <QDBusObjectPath>
 #include <QDBusReply>
 #include <QDBusVariant>
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QRandomGenerator>
 #include <QVector>
@@ -115,9 +117,21 @@ public:
 
     QString name() const override { return QStringLiteral("x11"); }
 
+    void setSuspended(bool suspended) override
+    {
+        m_suspended = suspended;
+        if (suspended)
+            ungrabAll();
+        else
+            setBindings(m_bindings);
+    }
+
     void setBindings(const QList<HotkeyBinding> &bindings) override
     {
+        m_bindings = bindings;
         ungrabAll();
+        if (m_suspended)
+            return;
         Display *dpy = display();
         if (!dpy)
             return;
@@ -206,8 +220,54 @@ private:
     }
 
     QVector<Grab> m_grabs;
+    QList<HotkeyBinding> m_bindings;
+    bool m_suspended = false;
 };
 #endif
+
+// GNOME owns global keys on both X11 and Wayland, so the hotkeys become GNOME custom shortcuts that run
+// "snapline <command>"; the single-instance socket forwards that to this process.
+class GnomeBackend : public HotkeyBackend {
+public:
+    using HotkeyBackend::HotkeyBackend;
+    QString name() const override { return QStringLiteral("gnome"); }
+
+    void setReplaceDesktopKeys(bool replace) override { m_replace = replace; }
+
+    void setSuspended(bool suspended) override
+    {
+        if (suspended)
+            GnomeShortcut::suspend();
+        else
+            GnomeShortcut::resume();
+    }
+
+    void setBindings(const QList<HotkeyBinding> &bindings) override
+    {
+        QStringList skipped;
+        QString error;
+        if (!GnomeShortcut::apply(bindings, program(), m_replace, &skipped, &error)) {
+            for (const HotkeyBinding &b : bindings) {
+                if (b.enabled)
+                    emit registrationFailed(b.id, tr("Could not change GNOME's keyboard shortcuts: %1").arg(error));
+            }
+            return;
+        }
+        for (const QString &id : skipped) {
+            emit registrationFailed(id, tr("GNOME's screenshot tool uses this key. Open Settings, go to Hotkeys and "
+                                           "click OK to give it to Snapline."));
+        }
+    }
+
+private:
+    static QString program()
+    {
+        const QString appImage = qEnvironmentVariable("APPIMAGE");
+        return appImage.isEmpty() ? QCoreApplication::applicationFilePath() : appImage;
+    }
+
+    bool m_replace = false;
+};
 
 } // namespace
 
@@ -343,7 +403,9 @@ private:
 
 HotkeyManager::HotkeyManager(QObject *parent) : QObject(parent)
 {
-    if (ScreenGrabber::isWayland()) {
+    if (GnomeShortcut::isGnome()) {
+        m_backend = std::make_unique<GnomeBackend>(nullptr);
+    } else if (ScreenGrabber::isWayland()) {
         if (PortalHotkeyBackend::isAvailable())
             m_backend = std::make_unique<PortalHotkeyBackend>(nullptr);
         else
@@ -367,6 +429,16 @@ HotkeyManager::~HotkeyManager() = default;
 void HotkeyManager::setBindings(const QList<HotkeyBinding> &bindings)
 {
     m_backend->setBindings(bindings);
+}
+
+void HotkeyManager::setReplaceDesktopKeys(bool replace)
+{
+    m_backend->setReplaceDesktopKeys(replace);
+}
+
+void HotkeyManager::setSuspended(bool suspended)
+{
+    m_backend->setSuspended(suspended);
 }
 
 QString HotkeyManager::backendName() const

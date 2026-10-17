@@ -36,6 +36,22 @@ public:
     void updateDraft(const QPointF &point, bool constrain);
     void commitDraft();
     void addAnnotation(AnnotationPtr annotation);
+
+    // Editing existing annotations. Colour and width changes also apply to the selected one.
+    AnnotationPtr annotationAt(const QPointF &point) const;
+    AnnotationPtr selectedAnnotation() const { return m_selected; }
+    void selectAnnotation(const AnnotationPtr &annotation);
+    void beginMove();
+    void moveSelected(const QPointF &offsetFromStart);
+    void endMove();
+    void nudgeSelected(const QPointF &offset);
+    void deleteSelected();
+    // Replaces old with replacement (removes it if replacement is null or empty), as one undo step.
+    void replaceAnnotation(const AnnotationPtr &old, AnnotationPtr replacement);
+    // Hidden while its text is being edited in place.
+    AnnotationPtr editingAnnotation() const { return m_editing; }
+    void setEditingAnnotation(const AnnotationPtr &annotation);
+
     void undo();
     void redo();
     bool canUndo() const { return m_annotations.canUndo(); }
@@ -49,6 +65,9 @@ signals:
     void changed();
 
 private:
+    void restyleSelected();
+    void rebakeBlurs();
+
     Capture m_capture;
     QRect m_virtual;
     QRect m_selection;
@@ -56,6 +75,11 @@ private:
     Style m_style;
     AnnotationStack m_annotations;
     AnnotationPtr m_draft;
+    AnnotationPtr m_selected;
+    AnnotationPtr m_editing;
+    AnnotationPtr m_moveOriginal;
+    QVector<AnnotationPtr> m_moveBase;
+    bool m_moved = false;
 };
 
 } // namespace snapline

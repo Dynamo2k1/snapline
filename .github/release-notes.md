@@ -20,4 +20,4 @@ Region screenshots for Linux: press a hotkey, drag over what you want, mark it u
 Run `snapline` (or open it from the app menu); it sits in the tray. `Print` selects an area, `Shift+Print` saves the full screen.
 
 - **Wayland:** install `wl-clipboard`. On Sway/Hyprland also install `grim` and bind `snapline gui` to a key.
-- **GNOME:** GNOME keeps `Print` for its own screenshot tool. Use *Settings → Hotkeys → Add the general hotkey as a GNOME shortcut*, or bind `snapline gui` yourself in GNOME Settings → Keyboard → Custom Shortcuts.
+- **GNOME:** set your hotkeys in Snapline's *Settings → Hotkeys* (click the field, press the keys, OK). To use `Print`, confirm when Snapline asks to take it from GNOME's screenshot tool.

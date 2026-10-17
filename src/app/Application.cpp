@@ -88,6 +88,7 @@ void Application::start()
         notify(tr("Failed to register a hotkey: %1").arg(key), reason + QLatin1Char(' ') + tr("Click to open Settings."),
                [this]() { showSettings(); });
     });
+    m_hotkeys->setReplaceDesktopKeys(m_config.replaceDesktopKeys);
     m_hotkeys->setBindings(m_config.hotkeys);
 
     const HotkeyBinding main = m_config.hotkey(HotkeyId::Main);
@@ -322,6 +323,7 @@ void Application::showSettings(bool proxyPage)
     if (!m_settings) {
         m_settings = new SettingsDialog(m_config);
         connect(m_settings, &SettingsDialog::applied, this, &Application::applyConfig);
+        connect(m_settings, &SettingsDialog::hotkeyRecording, m_hotkeys, &HotkeyManager::setSuspended);
     }
     if (proxyPage)
         m_settings->showProxyPage();
@@ -338,13 +340,14 @@ void Application::applyConfig(const Config &config)
             if (old.enabled != b.enabled || old.sequence != b.sequence)
                 return true;
         }
-        return false;
+        return config.replaceDesktopKeys != m_config.replaceDesktopKeys;
     }();
     m_config = config;
     m_config.save();
     Uploader::applyProxy(m_network, m_config);
     if (hotkeysChanged) {
         m_hotkeyWarningShown = false;
+        m_hotkeys->setReplaceDesktopKeys(m_config.replaceDesktopKeys);
         m_hotkeys->setBindings(m_config.hotkeys);
     }
 }

@@ -26,9 +26,12 @@ public:
 
 signals:
     void applied(const snapline::Config &config);
+    // True while a hotkey field has focus and records keys; global hotkeys should be off meanwhile.
+    void hotkeyRecording(bool recording);
 
 protected:
     void accept() override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     struct HotkeyRow {
@@ -42,7 +45,7 @@ private:
     QWidget *buildFormatsPage();
     QWidget *buildUploadPage();
     QWidget *buildProxyPage();
-    void installGnomeShortcut();
+    void updateRecording();
 
     Config m_config;
     QTabWidget *m_tabs = nullptr;
@@ -58,6 +61,7 @@ private:
     QLineEdit *m_template = nullptr;
 
     QList<HotkeyRow> m_hotkeys;
+    bool m_recording = false;
 
     QComboBox *m_format = nullptr;
     QSpinBox *m_jpegQuality = nullptr;

@@ -23,8 +23,19 @@ Snapline is an independent, open-source project. It is not affiliated with Light
 | Ctrl+P | Print |
 | Ctrl+Z / Ctrl+Shift+Z | Undo / redo |
 | Ctrl+A | Select the whole monitor |
-| Arrow keys | Move the selection |
-| Esc / right-click | Cancel |
+| Arrow keys | Move the selection (or the selected annotation) |
+| Esc / right-click | Cancel (Esc first deselects an annotation) |
+
+### Editing annotations
+
+Everything you draw stays editable until you copy, save or upload:
+
+- **Drag** any text, arrow, line, shape, pen stroke or blur to move it. Rectangles and circles are grabbed by their outline, so you can still draw inside them.
+- **Click** an annotation to select it, then pick a colour or scroll the mouse wheel to restyle it. On text, the wheel changes the font size.
+- **Double-click** text to edit it. With the text tool, a single click is enough.
+- **Delete** or **Backspace** removes the selected annotation.
+- Hold **Ctrl** to draw on top of an annotation instead of grabbing it.
+- Undo and redo cover all of these edits.
 
 ## Install
 
@@ -56,7 +67,9 @@ snapline quit
 
 ### Wayland notes
 
-- **GNOME and KDE:** screen capture goes through the desktop portal. Global hotkeys go through the GlobalShortcuts portal, and your desktop may ask you to confirm them the first time. GNOME binds `Print` to its own screenshot tool. *Settings → Hotkeys → Add the general hotkey as a GNOME shortcut* can hand `Print` to Snapline.
+- **GNOME** (Wayland and X11): set hotkeys in *Settings → Hotkeys*: click a field, press the keys, click OK. Snapline saves them as GNOME keyboard shortcuts, which also appear in GNOME Settings → Keyboard. If you choose `Print`, Snapline asks before taking it from GNOME's screenshot tool, and GNOME gets the key back if you later change it.
+- **KDE:** global hotkeys go through the GlobalShortcuts portal, and KDE may ask you to confirm them the first time.
+- Screen capture on GNOME and KDE Wayland goes through the desktop's screenshot portal.
 - **Sway, Hyprland and other wlroots compositors:** install `grim`. Bind `snapline gui` in your compositor config, e.g. `bindsym Print exec snapline gui`.
 - Install `wl-clipboard` so copied images stay in the clipboard reliably.
 - The capture-cursor option needs X11 or the `grim` backend. The GNOME/KDE portal doesn't support it.

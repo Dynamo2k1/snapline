@@ -3,6 +3,7 @@
 #include "overlay/CaptureSession.h"
 #include "overlay/Toolbars.h"
 
+#include <QGuiApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -183,10 +184,16 @@ void OverlayWindow::paintEvent(QPaintEvent *)
     p.save();
     p.setClipRect(sel);
     p.setRenderHint(QPainter::Antialiasing);
-    m_session->annotations().paint(p);
+    m_session->annotations().paint(p, m_session->editingAnnotation());
     if (m_session->draft())
         m_session->draft()->paint(p);
     p.restore();
+
+    if (const AnnotationPtr selected = m_session->selectedAnnotation()) {
+        p.setPen(QPen(kAccent, 1, Qt::DashLine));
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(selected->bounds().adjusted(-3, -3, 3, 3));
+    }
 
     p.setPen(QPen(kAccent, 1, Qt::DashLine));
     p.setBrush(Qt::NoBrush);
@@ -236,6 +243,14 @@ void OverlayWindow::mousePressEvent(QMouseEvent *event)
         m_drag = Drag::Resize;
         m_handle = handle;
     } else if (!sel.isEmpty() && sel.contains(g)) {
+        if (const AnnotationPtr hit = grabbableAt(g, event->modifiers())) {
+            m_session->selectAnnotation(hit);
+            m_session->beginMove();
+            m_drag = Drag::MoveAnnotation;
+            updateToolbars();
+            return;
+        }
+        m_session->selectAnnotation(nullptr);
         switch (m_session->tool()) {
         case Tool::None:
             m_drag = Drag::Move;
@@ -248,6 +263,7 @@ void OverlayWindow::mousePressEvent(QMouseEvent *event)
             m_session->beginDraft(g);
         }
     } else {
+        m_session->selectAnnotation(nullptr);
         m_drag = Drag::NewSelection;
         m_session->setSelection(QRect(g, QSize(1, 1)));
     }
@@ -284,6 +300,9 @@ void OverlayWindow::mouseMoveEvent(QMouseEvent *event)
     case Drag::Draw:
         m_session->updateDraft(g, event->modifiers() & Qt::ShiftModifier);
         break;
+    case Drag::MoveAnnotation:
+        m_session->moveSelected(delta);
+        break;
     case Drag::None:
         updateCursor(g);
         if (!m_session->hasSelection())
@@ -300,6 +319,13 @@ void OverlayWindow::mouseReleaseEvent(QMouseEvent *event)
     m_drag = Drag::None;
     if (drag == Drag::Draw) {
         m_session->commitDraft();
+    } else if (drag == Drag::MoveAnnotation) {
+        const bool clicked = (toGlobal(event->position()) - m_pressGlobal).manhattanLength() < 3;
+        m_session->endMove();
+        // With the text tool, a plain click on existing text edits it.
+        const AnnotationPtr selected = m_session->selectedAnnotation();
+        if (clicked && selected && selected->textContent() && m_session->tool() == Tool::Text)
+            editText(selected);
     } else if (drag == Drag::NewSelection) {
         const QRect sel = m_session->selection();
         if (sel.width() < 3 || sel.height() < 3)
@@ -309,6 +335,25 @@ void OverlayWindow::mouseReleaseEvent(QMouseEvent *event)
     updateCursor(toGlobal(event->position()));
 }
 
+void OverlayWindow::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton)
+        return;
+    const AnnotationPtr hit = m_session->annotationAt(toGlobal(event->position()));
+    if (hit && hit->textContent()) {
+        m_drag = Drag::None;
+        editText(hit);
+    }
+}
+
+AnnotationPtr OverlayWindow::grabbableAt(const QPoint &global, Qt::KeyboardModifiers modifiers) const
+{
+    // Ctrl draws on top of existing annotations instead of grabbing them.
+    if (modifiers & Qt::ControlModifier)
+        return nullptr;
+    return m_session->annotationAt(global);
+}
+
 void OverlayWindow::keyPressEvent(QKeyEvent *event)
 {
     const auto mods = event->modifiers();
@@ -316,8 +361,20 @@ void OverlayWindow::keyPressEvent(QKeyEvent *event)
     const bool shift = mods & Qt::ShiftModifier;
     const int step = shift ? 10 : 1;
 
-    if (event->key() == Qt::Key_Escape) {
+    const bool hasAnnotation = m_session->selectedAnnotation() != nullptr;
+
+    if (event->key() == Qt::Key_Escape && hasAnnotation) {
+        m_session->selectAnnotation(nullptr);
+    } else if (event->key() == Qt::Key_Escape) {
         emit action(Action::Close);
+    } else if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && hasAnnotation) {
+        m_session->deleteSelected();
+    } else if (hasAnnotation && !ctrl
+               && (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right
+                   || event->key() == Qt::Key_Up || event->key() == Qt::Key_Down)) {
+        const int dx = event->key() == Qt::Key_Left ? -step : event->key() == Qt::Key_Right ? step : 0;
+        const int dy = event->key() == Qt::Key_Up ? -step : event->key() == Qt::Key_Down ? step : 0;
+        m_session->nudgeSelected(QPointF(dx, dy));
     } else if (ctrl && event->key() == Qt::Key_C) {
         emit action(Action::Copy);
     } else if (ctrl && event->key() == Qt::Key_S) {
@@ -379,6 +436,10 @@ void OverlayWindow::updateCursor(const QPoint &global)
         setCursor(handle >= 0 ? handleCursor(handle) : Qt::CrossCursor);
         return;
     }
+    if (grabbableAt(global, QGuiApplication::queryKeyboardModifiers())) {
+        setCursor(Qt::SizeAllCursor);
+        return;
+    }
     switch (m_session->tool()) {
     case Tool::None: {
         const int handle = handleAt(global);
@@ -434,15 +495,22 @@ void OverlayWindow::updateToolbars()
     m_tools->raise();
 }
 
-void OverlayWindow::beginText(const QPoint &global)
+void OverlayWindow::beginText(const QPoint &global, const std::optional<TextContent> &existing)
 {
     m_textGlobal = global;
-    m_text = new TextEditor(m_session->color(), textPixelSize(m_session->strokeWidth()), this);
+    m_textColor = existing ? existing->color : m_session->color();
+    const int size = existing ? existing->pixelSize : textPixelSize(m_session->strokeWidth());
+    m_text = new TextEditor(m_textColor, size, this);
+    if (existing) {
+        m_text->setPlainText(existing->text);
+        m_text->moveCursor(QTextCursor::End);
+    }
     m_text->move(global - screenGeometry().topLeft());
     connect(m_text, &TextEditor::commit, this, &OverlayWindow::commitText);
     connect(m_text, &TextEditor::cancel, this, [this]() {
         m_text->deleteLater();
         m_text = nullptr;
+        m_session->setEditingAnnotation(nullptr);
         setFocus();
     });
     m_text->show();
@@ -450,16 +518,34 @@ void OverlayWindow::beginText(const QPoint &global)
     emit textEditingStarted(this);
 }
 
+void OverlayWindow::editText(const AnnotationPtr &annotation)
+{
+    const std::optional<TextContent> content = annotation->textContent();
+    if (!content)
+        return;
+    if (m_text)
+        commitText();
+    // Deselect so palette and wheel changes during editing do not replace the annotation underneath.
+    m_session->selectAnnotation(nullptr);
+    m_session->setEditingAnnotation(annotation);
+    beginText(content->topLeft.toPoint() - QPoint(1, 2), content);
+}
+
 void OverlayWindow::commitText()
 {
     if (!m_text)
         return;
     const QString text = m_text->toPlainText();
-    const QColor color = m_session->color();
     const int size = m_text->font().pixelSize();
     m_text->deleteLater();
     m_text = nullptr;
-    m_session->addAnnotation(makeTextAnnotation(m_textGlobal + QPoint(1, 2), text, color, size));
+    AnnotationPtr annotation = makeTextAnnotation(m_textGlobal + QPoint(1, 2), text, m_textColor, size);
+    if (const AnnotationPtr editing = m_session->editingAnnotation()) {
+        m_session->setEditingAnnotation(nullptr);
+        m_session->replaceAnnotation(editing, std::move(annotation));
+    } else {
+        m_session->addAnnotation(std::move(annotation));
+    }
     setFocus();
 }
 

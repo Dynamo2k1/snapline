@@ -4,6 +4,7 @@
 #include "app/ImageExport.h"
 #include "capture/ScreenGrabber.h"
 
+#include <QApplication>
 #include <QBoxLayout>
 #include <QCheckBox>
 #include <QComboBox>
@@ -139,8 +140,11 @@ QWidget *SettingsDialog::buildHotkeysPage()
         edit->setMaximumSequenceLength(1);
         edit->setClearButtonEnabled(true);
 #endif
-        connect(enabled, &QCheckBox::toggled, edit, &QWidget::setEnabled);
-        edit->setEnabled(b.enabled);
+        // Like Windows: click the field and press the keys; setting a key switches the hotkey on.
+        connect(edit, &QKeySequenceEdit::keySequenceChanged, enabled, [enabled](const QKeySequence &seq) {
+            if (!seq.isEmpty())
+                enabled->setChecked(true);
+        });
         row->addWidget(enabled);
         row->addWidget(edit, 1);
         form->addRow(hotkeyLabel(id), row);
@@ -148,38 +152,46 @@ QWidget *SettingsDialog::buildHotkeysPage()
     }
     layout->addLayout(form);
 
-    if (ScreenGrabber::isWayland()) {
-        auto *info = new QLabel(tr("On Wayland, global hotkeys go through your desktop. The first time, it may ask you "
-                                   "to confirm them. If your desktop does not support this, bind the command "
-                                   "<b>snapline gui</b> in its keyboard settings."),
-                                page);
+    QString note;
+    if (GnomeShortcut::isGnome())
+        note = tr("Click a field and press the keys you want. Snapline adds them to GNOME's keyboard shortcuts, "
+                  "so they work everywhere, also on Wayland.");
+    else if (ScreenGrabber::isWayland())
+        note = tr("On Wayland, global hotkeys go through your desktop. The first time, it may ask you to confirm "
+                  "them. If your desktop does not support this, bind the command <b>snapline gui</b> in its "
+                  "keyboard settings.");
+    if (!note.isEmpty()) {
+        auto *info = new QLabel(note, page);
         info->setWordWrap(true);
         layout->addWidget(info);
     }
-    if (GnomeShortcut::isGnome()) {
-        auto *gnome = new QPushButton(tr("Add the general hotkey as a GNOME shortcut"), page);
-        connect(gnome, &QPushButton::clicked, this, &SettingsDialog::installGnomeShortcut);
-        layout->addWidget(gnome);
-    }
+    connect(qApp, &QApplication::focusChanged, this, &SettingsDialog::updateRecording);
     layout->addStretch();
     return page;
 }
 
-void SettingsDialog::installGnomeShortcut()
+void SettingsDialog::updateRecording()
 {
-    const QKeySequence seq = m_hotkeys.first().edit->keySequence();
-    const bool isPrint = seq.count() == 1 && seq[0].key() == Qt::Key_Print && seq[0].keyboardModifiers() == Qt::NoModifier;
-    bool releasePrint = false;
-    if (isPrint) {
-        releasePrint = QMessageBox::question(this, tr("Use the Print key"),
-                                             tr("GNOME uses the Print key for its own screenshot tool. Assign it to "
-                                                "Snapline instead?")) == QMessageBox::Yes;
+    QWidget *focus = QApplication::focusWidget();
+    bool recording = false;
+    for (const HotkeyRow &row : std::as_const(m_hotkeys)) {
+        if (focus && (focus == row.edit || row.edit->isAncestorOf(focus)))
+            recording = true;
     }
-    QString error;
-    if (GnomeShortcut::install(seq, QStringLiteral("snapline gui"), releasePrint, &error))
-        QMessageBox::information(this, tr("GNOME shortcut"), tr("The shortcut was added to GNOME's keyboard settings."));
-    else
-        QMessageBox::warning(this, tr("GNOME shortcut"), tr("Could not add the shortcut: %1").arg(error));
+    recording = recording && isVisible();
+    if (recording != m_recording) {
+        m_recording = recording;
+        emit hotkeyRecording(recording);
+    }
+}
+
+void SettingsDialog::hideEvent(QHideEvent *event)
+{
+    if (m_recording) {
+        m_recording = false;
+        emit hotkeyRecording(false);
+    }
+    QDialog::hideEvent(event);
 }
 
 QWidget *SettingsDialog::buildFormatsPage()
@@ -361,7 +373,49 @@ void SettingsDialog::accept()
     case HotkeyError::None:
         break;
     }
-    emit applied(c);
+
+    // A global hotkey steals the key from every app, so refuse the everyday editing shortcuts.
+    for (const HotkeyBinding &b : c.hotkeys) {
+        if (!b.enabled || b.sequence.isEmpty())
+            continue;
+        const QKeyCombination combo = b.sequence[0];
+        const bool plainCtrl = combo.keyboardModifiers() == Qt::ControlModifier;
+        static const QList<int> editingKeys = {Qt::Key_A, Qt::Key_C, Qt::Key_V, Qt::Key_X, Qt::Key_Z, Qt::Key_Y,
+                                               Qt::Key_S, Qt::Key_F, Qt::Key_P, Qt::Key_W, Qt::Key_Q, Qt::Key_T};
+        const bool singleKey = combo.keyboardModifiers() == Qt::NoModifier && combo.key() != Qt::Key_Print
+                               && !(combo.key() >= Qt::Key_F1 && combo.key() <= Qt::Key_F35);
+        if ((plainCtrl && editingKeys.contains(combo.key())) || singleKey) {
+            m_tabs->setCurrentIndex(1);
+            QMessageBox::warning(this, windowTitle(),
+                                 tr("%1 is used for typing or editing in other apps, and a hotkey would take it "
+                                    "away from them. Try something like Print, Ctrl+Shift+X or Ctrl+Print.")
+                                     .arg(b.sequence.toString(QKeySequence::NativeText)));
+            return;
+        }
+    }
+
+    Config result = c;
+    if (GnomeShortcut::isGnome()) {
+        if (m_recording) { // put GNOME's keys back before checking them
+            m_recording = false;
+            emit hotkeyRecording(false);
+        }
+        const QStringList taken = GnomeShortcut::conflicts(c.hotkeys);
+        if (!taken.isEmpty()) {
+            const QString key = c.hotkey(taken.first()).sequence.toString(QKeySequence::NativeText);
+            const auto answer = QMessageBox::question(
+                this, tr("Use %1 for Snapline").arg(key),
+                tr("GNOME's screenshot tool uses %1. Give it to Snapline instead?\n\n"
+                   "GNOME gets the key back if you change or switch off this hotkey later.")
+                    .arg(key));
+            if (answer != QMessageBox::Yes) {
+                m_tabs->setCurrentIndex(1);
+                return;
+            }
+            result.replaceDesktopKeys = true;
+        }
+    }
+    emit applied(result);
     QDialog::accept();
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "overlay/Actions.h"
+#include "tools/Annotation.h"
 
 #include <QPointer>
 #include <QWidget>
@@ -34,18 +35,21 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void enterEvent(QEnterEvent *event) override;
 
 private:
-    enum class Drag { None, NewSelection, Move, Resize, Draw };
+    enum class Drag { None, NewSelection, Move, Resize, Draw, MoveAnnotation };
 
     QPoint toGlobal(const QPointF &local) const;
     int handleAt(const QPoint &global) const;
     void updateCursor(const QPoint &global);
     void updateToolbars();
-    void beginText(const QPoint &global);
+    void beginText(const QPoint &global, const std::optional<TextContent> &existing = std::nullopt);
+    void editText(const AnnotationPtr &annotation);
+    AnnotationPtr grabbableAt(const QPoint &global, Qt::KeyboardModifiers modifiers) const;
     void nudgeSelection(int dx, int dy);
 
     CaptureSession *m_session;
@@ -55,6 +59,7 @@ private:
     ActionsBar *m_actions;
     QPointer<TextEditor> m_text;
     QPoint m_textGlobal;
+    QColor m_textColor;
 
     Drag m_drag = Drag::None;
     int m_handle = -1;

@@ -48,6 +48,7 @@ Config Config::load()
                                   QKeySequence::PortableText);
         b.enabled = s.value(b.id + QStringLiteral("_enabled"), b.enabled).toBool();
     }
+    c.replaceDesktopKeys = s.value(QStringLiteral("replace_desktop_keys"), c.replaceDesktopKeys).toBool();
     s.endGroup();
 
     s.beginGroup(QStringLiteral("general"));
@@ -99,6 +100,7 @@ void Config::save() const
         s.setValue(b.id, b.sequence.toString(QKeySequence::PortableText));
         s.setValue(b.id + QStringLiteral("_enabled"), b.enabled);
     }
+    s.setValue(QStringLiteral("replace_desktop_keys"), replaceDesktopKeys);
     s.endGroup();
 
     s.beginGroup(QStringLiteral("general"));

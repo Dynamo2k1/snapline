@@ -7,6 +7,7 @@
 #include <QGuiApplication>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QScreen>
 #include <QSignalSpy>
 #include <QtTest>
@@ -103,6 +104,76 @@ private slots:
         QCOMPARE(actions.count(), 2);
         QCOMPARE(actions.at(0).at(0).value<Action>(), Action::Undo);
         QCOMPARE(actions.at(1).at(0).value<Action>(), Action::Close);
+    }
+
+    void annotationsCanBeMovedEditedRestyledAndDeleted()
+    {
+        CaptureSession session(syntheticCapture(), nullptr);
+        OverlayWindow window(&session, 0, QGuiApplication::primaryScreen());
+        window.setAttribute(Qt::WA_DeleteOnClose, false);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        session.setSelection(QRect(50, 50, 500, 400));
+
+        // Type a text label.
+        session.setTool(Tool::Text);
+        QTest::mouseClick(&window, Qt::LeftButton, {}, QPoint(100, 100));
+        auto *editor = window.findChild<QPlainTextEdit *>();
+        QVERIFY(editor);
+        QTest::keyClicks(editor, QStringLiteral("Hello"));
+        QTest::keyClick(editor, Qt::Key_Return);
+        QCOMPARE(session.annotations().size(), 1);
+        const QRectF before = session.annotations().items().first()->bounds();
+
+        // Drag it somewhere else, with any tool selected.
+        session.setTool(Tool::Pen);
+        const QPoint grab = before.center().toPoint();
+        QTest::mousePress(&window, Qt::LeftButton, {}, grab);
+        QTest::mouseMove(&window, grab + QPoint(60, 40));
+        QTest::mouseRelease(&window, Qt::LeftButton, {}, grab + QPoint(60, 40));
+        QCOMPARE(session.annotations().size(), 1);
+        QCOMPARE(session.annotations().items().first()->bounds(), before.translated(60, 40));
+        QVERIFY(session.selectedAnnotation());
+
+        // Restyle the selected label: colour and size.
+        session.setColor(QColor(0, 200, 0));
+        session.setStrokeWidth(10);
+        auto content = session.annotations().items().first()->textContent();
+        QVERIFY(content);
+        QCOMPARE(content->color, QColor(0, 200, 0));
+        QCOMPARE(content->pixelSize, textPixelSize(10));
+
+        // Double-click to edit the text in place.
+        const QPoint moved = session.annotations().items().first()->bounds().center().toPoint();
+        QTest::mouseDClick(&window, Qt::LeftButton, {}, moved);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); // drop the first editor
+        editor = window.findChild<QPlainTextEdit *>();
+        QVERIFY(editor);
+        QCOMPARE(editor->toPlainText(), QStringLiteral("Hello"));
+        QTest::keyClicks(editor, QStringLiteral(" world"));
+        QTest::keyClick(editor, Qt::Key_Return);
+        QCOMPARE(session.annotations().size(), 1);
+        QCOMPARE(session.annotations().items().first()->textContent()->text, QStringLiteral("Hello world"));
+        QCOMPARE(session.annotations().items().first()->textContent()->color, QColor(0, 200, 0));
+
+        // Select and delete, then undo brings it back.
+        const QPoint target = session.annotations().items().first()->bounds().center().toPoint();
+        QTest::mouseClick(&window, Qt::LeftButton, {}, target);
+        QVERIFY(session.selectedAnnotation());
+        QTest::keyClick(&window, Qt::Key_Delete);
+        QCOMPARE(session.annotations().size(), 0);
+        session.undo();
+        QCOMPARE(session.annotations().size(), 1);
+        QCOMPARE(session.annotations().items().first()->textContent()->text, QStringLiteral("Hello world"));
+
+        // Shapes are grabbed by their outline only, so drawing inside them still works.
+        session.setTool(Tool::Rect);
+        QTest::mousePress(&window, Qt::LeftButton, {}, QPoint(200, 250));
+        QTest::mouseMove(&window, QPoint(400, 400));
+        QTest::mouseRelease(&window, Qt::LeftButton, {}, QPoint(400, 400));
+        QCOMPARE(session.annotations().size(), 2);
+        QVERIFY(!session.annotationAt(QPointF(300, 320)));
+        QVERIFY(session.annotationAt(QPointF(200, 320)));
     }
 
     void copyActionDeliversAnnotatedImage()

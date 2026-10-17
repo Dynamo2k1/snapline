@@ -1,6 +1,7 @@
 #include "tools/Annotation.h"
 
 #include <QFont>
+#include <QFontMetricsF>
 #include <QLineF>
 #include <QPainter>
 #include <QPainterPath>
@@ -34,6 +35,17 @@ QRectF dragRect(const QPointF &a, QPointF b, bool square)
     return QRectF(a, b).normalized();
 }
 
+bool strokeContains(const QPainterPath &path, qreal width, const QPointF &point, qreal tolerance)
+{
+    QPainterPathStroker stroker;
+    stroker.setWidth(width + 2 * tolerance);
+    stroker.setCapStyle(Qt::RoundCap);
+    stroker.setJoinStyle(Qt::RoundJoin);
+    return stroker.createStroke(path).contains(point);
+}
+
+constexpr int kTextFlags = Qt::AlignLeft | Qt::AlignTop | Qt::TextDontClip;
+
 class StrokeAnnotation : public Annotation {
 public:
     StrokeAnnotation(const QPointF &start, const Style &style, bool marker)
@@ -64,7 +76,36 @@ public:
 
     bool isEmpty() const override { return false; }
 
+    QRectF bounds() const override
+    {
+        const qreal pad = paintWidth() / 2;
+        return m_path.boundingRect().adjusted(-pad, -pad, pad, pad);
+    }
+
+    bool hitTest(const QPointF &point, qreal tolerance) const override
+    {
+        if (m_path.elementCount() == 1)
+            return QLineF(point, m_path.currentPosition()).length() <= paintWidth() / 2 + tolerance;
+        return strokeContains(m_path, paintWidth(), point, tolerance);
+    }
+
+    AnnotationPtr translated(const QPointF &offset) const override
+    {
+        auto copy = std::make_shared<StrokeAnnotation>(*this);
+        copy->m_path.translate(offset);
+        return copy;
+    }
+
+    AnnotationPtr restyled(const Style &style) const override
+    {
+        auto copy = std::make_shared<StrokeAnnotation>(*this);
+        copy->m_style = style;
+        return copy;
+    }
+
 private:
+    qreal paintWidth() const { return m_marker ? std::max<qreal>(m_style.width * 4, 12) : m_style.width; }
+
     Style m_style;
     bool m_marker;
     QPainterPath m_path;
@@ -100,6 +141,39 @@ public:
 
     bool isEmpty() const override { return QLineF(m_start, m_end).length() < 2; }
 
+    QRectF bounds() const override
+    {
+        QRectF r = QRectF(m_start, m_end).normalized();
+        if (m_arrow)
+            r = r.united(arrowHead(m_start, m_end, m_style.width).boundingRect());
+        const qreal pad = m_style.width / 2;
+        return r.adjusted(-pad, -pad, pad, pad);
+    }
+
+    bool hitTest(const QPointF &point, qreal tolerance) const override
+    {
+        QPainterPath path(m_start);
+        path.lineTo(m_end);
+        if (strokeContains(path, m_style.width, point, tolerance))
+            return true;
+        return m_arrow && arrowHead(m_start, m_end, m_style.width).containsPoint(point, Qt::OddEvenFill);
+    }
+
+    AnnotationPtr translated(const QPointF &offset) const override
+    {
+        auto copy = std::make_shared<LineAnnotation>(*this);
+        copy->m_start += offset;
+        copy->m_end += offset;
+        return copy;
+    }
+
+    AnnotationPtr restyled(const Style &style) const override
+    {
+        auto copy = std::make_shared<LineAnnotation>(*this);
+        copy->m_style = style;
+        return copy;
+    }
+
 private:
     Style m_style;
     bool m_arrow;
@@ -128,6 +202,38 @@ public:
 
     bool isEmpty() const override { return m_rect.width() < 2 && m_rect.height() < 2; }
 
+    QRectF bounds() const override
+    {
+        const qreal pad = m_style.width / 2;
+        return m_rect.adjusted(-pad, -pad, pad, pad);
+    }
+
+    // Only the outline counts, so you can still draw inside a rectangle or circle.
+    bool hitTest(const QPointF &point, qreal tolerance) const override
+    {
+        QPainterPath path;
+        if (m_ellipse)
+            path.addEllipse(m_rect);
+        else
+            path.addRect(m_rect);
+        return strokeContains(path, m_style.width, point, tolerance);
+    }
+
+    AnnotationPtr translated(const QPointF &offset) const override
+    {
+        auto copy = std::make_shared<ShapeAnnotation>(*this);
+        copy->m_start += offset;
+        copy->m_rect.translate(offset);
+        return copy;
+    }
+
+    AnnotationPtr restyled(const Style &style) const override
+    {
+        auto copy = std::make_shared<ShapeAnnotation>(*this);
+        copy->m_style = style;
+        return copy;
+    }
+
 private:
     Style m_style;
     bool m_ellipse;
@@ -155,7 +261,22 @@ public:
     }
 
     bool isEmpty() const override { return m_rect.width() < 3 || m_rect.height() < 3; }
-    QRectF baseRect() const override { return m_patch.isNull() ? m_rect : QRectF(); }
+    QRectF bounds() const override { return m_rect; }
+    bool hitTest(const QPointF &point, qreal tolerance) const override
+    {
+        return m_rect.adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(point);
+    }
+
+    // The moved copy keeps the old pixels until the session re-renders what is now underneath.
+    AnnotationPtr translated(const QPointF &offset) const override
+    {
+        auto copy = std::make_shared<BlurAnnotation>(*this);
+        copy->m_start += offset;
+        copy->m_rect.translate(offset);
+        return copy;
+    }
+
+    QRectF baseRect() const override { return m_rect; }
     void applyBase(const QImage &base) override
     {
         const int block = std::max(8, int(std::lround(12 * base.devicePixelRatio())));
@@ -180,11 +301,43 @@ public:
         font.setPixelSize(m_pixelSize);
         p.setFont(font);
         p.setPen(m_color);
-        p.drawText(QRectF(m_topLeft, QSizeF(100000, 100000)), Qt::AlignLeft | Qt::AlignTop | Qt::TextDontClip, m_text);
+        p.drawText(QRectF(m_topLeft, QSizeF(100000, 100000)), kTextFlags, m_text);
         p.restore();
     }
 
     bool isEmpty() const override { return m_text.trimmed().isEmpty(); }
+
+    QRectF bounds() const override
+    {
+        QFont font;
+        font.setPixelSize(m_pixelSize);
+        return QFontMetricsF(font).boundingRect(QRectF(m_topLeft, QSizeF(100000, 100000)), kTextFlags, m_text);
+    }
+
+    bool hitTest(const QPointF &point, qreal tolerance) const override
+    {
+        return bounds().adjusted(-tolerance, -tolerance, tolerance, tolerance).contains(point);
+    }
+
+    AnnotationPtr translated(const QPointF &offset) const override
+    {
+        auto copy = std::make_shared<TextAnnotation>(*this);
+        copy->m_topLeft += offset;
+        return copy;
+    }
+
+    AnnotationPtr restyled(const Style &style) const override
+    {
+        auto copy = std::make_shared<TextAnnotation>(*this);
+        copy->m_color = style.color;
+        copy->m_pixelSize = textPixelSize(style.width);
+        return copy;
+    }
+
+    std::optional<TextContent> textContent() const override
+    {
+        return TextContent{m_topLeft, m_text, m_color, m_pixelSize};
+    }
 
 private:
     QPointF m_topLeft;
