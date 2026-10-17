@@ -36,7 +36,7 @@ for s in "${series[@]}"; do
   tar -xzf "$work/snapline_$upstream.orig.tar.gz" -C "$work"
   (
     cd "$work/snapline-$upstream"
-    dch --newversion "$ppa_version" --distribution "$s" --force-distribution "PPA build for Ubuntu $s."
+    dch -b --newversion "$ppa_version" --distribution "$s" --force-distribution "PPA build for Ubuntu $s."
     debuild -S -sa -d
   )
   dput "$ppa" "$work/snapline_${ppa_version}_source.changes"
