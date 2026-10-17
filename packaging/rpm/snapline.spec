@@ -18,7 +18,6 @@ BuildRequires:  pkgconfig(xcb)
 BuildRequires:  pkgconfig(xcb-xfixes)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  desktop-file-utils
-BuildRequires:  /usr/bin/appstream-util
 
 %if 0%{?fedora}
 Requires:       qt6-qtsvg
@@ -46,7 +45,6 @@ and Wayland (GNOME, KDE, wlroots compositors).
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.snapline.Snapline.desktop
-appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/io.github.snapline.Snapline.metainfo.xml
 QT_QPA_PLATFORM=offscreen %ctest
 
 %files

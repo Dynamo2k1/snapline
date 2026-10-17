@@ -49,13 +49,24 @@ jobs:
           else zypper -n install rpm-build rpmdevtools tar git; fi
       - uses: actions/checkout@v4
       - name: Build .rpm (runs the tests)
+        shell: bash
         run: |
+          set -euo pipefail
           rpmdev-setuptree
           version=$(rpmspec -q --qf '%{version}\n' packaging/rpm/snapline.spec | head -1)
           git config --global --add safe.directory "$PWD"
           git archive --prefix="snapline-$version/" -o ~/rpmbuild/SOURCES/snapline-$version.tar.gz HEAD
           if command -v dnf; then dnf builddep -y packaging/rpm/snapline.spec;
-          else rpmspec -q --buildrequires packaging/rpm/snapline.spec | xargs -d '\n' zypper -n install; fi
+          else
+            mapfile -t deps < <(rpmspec -q --buildrequires packaging/rpm/snapline.spec)
+            rc=0; zypper -n install "${deps[@]}" || rc=$?
+            # 107: everything installed but a %post script failed, which is normal in containers.
+            if [[ $rc != 0 && $rc != 107 ]]; then
+              echo "zypper exited with $rc; checking each build dependency:"
+              for d in "${deps[@]}"; do zypper -n -q search --provides --match-exact "${d%% *}" >/dev/null 2>&1 || echo "  not found: $d"; done
+              exit $rc
+            fi
+          fi
           rpmbuild -ba packaging/rpm/snapline.spec
           mkdir -p dist
           for f in ~/rpmbuild/RPMS/*/snapline-[0-9]*.rpm; do

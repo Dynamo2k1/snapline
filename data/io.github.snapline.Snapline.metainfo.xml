@@ -5,6 +5,11 @@
   <summary>Region screenshots with annotation and upload</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.dynamo2k1">
+    <name>Dynamo2k1</name>
+  </developer>
+  <url type="homepage">https://github.com/Dynamo2k1/snapline</url>
+  <url type="bugtracker">https://github.com/Dynamo2k1/snapline/issues</url>
   <description>
     <p>
       Press a hotkey, drag over the part of the screen you want, mark it up, then copy it, save it,
