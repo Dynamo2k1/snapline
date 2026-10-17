@@ -1,5 +1,5 @@
 Name:           snapline
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Region screenshot tool with annotation and upload
 License:        GPL-3.0-or-later
@@ -56,5 +56,9 @@ QT_QPA_PLATFORM=offscreen %ctest
 %{_datadir}/icons/hicolor/scalable/apps/io.github.snapline.Snapline.svg
 
 %changelog
+* Sat Oct 17 2026 Snapline Maintainers <maintainers@snapline.invalid> - 0.2.0-1
+- Annotations can be moved, edited, restyled and deleted after drawing
+- Hotkeys set in Settings work on GNOME (Wayland and X11)
+
 * Sat Oct 17 2026 Snapline Maintainers <maintainers@snapline.invalid> - 0.1.0-1
 - Initial release

@@ -28,6 +28,14 @@
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-10-17">
+      <description>
+        <ul>
+          <li>Move, edit, recolour, resize and delete annotations after drawing them</li>
+          <li>Hotkeys set in Settings now work on GNOME, including Print</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-17"/>
   </releases>
 </component>

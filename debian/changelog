@@ -1,3 +1,10 @@
+snapline (0.2.0-1) unstable; urgency=medium
+
+  * Annotations can be moved, edited, restyled and deleted after drawing.
+  * Hotkeys set in Settings work on GNOME (Wayland and X11).
+
+ -- Snapline Maintainers <maintainers@snapline.invalid>  Sat, 17 Oct 2026 22:30:00 +0500
+
 snapline (0.1.0-1) unstable; urgency=medium
 
   * Initial release.
