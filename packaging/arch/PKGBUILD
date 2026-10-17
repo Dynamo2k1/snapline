@@ -1,6 +1,6 @@
 # Maintainer: Rana Uzair Ahmad <dynamo89247@gmail.com>
 pkgname=snapline
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Region screenshot tool with annotation and upload"
 arch=('x86_64' 'aarch64')

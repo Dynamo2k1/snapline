@@ -1,3 +1,14 @@
+snapline (0.2.1-1) unstable; urgency=medium
+
+  * Upload settings and history are now readable only by you (they can hold API tokens and private links).
+  * Notifications show links and file names containing & or < correctly.
+  * Upload error messages from servers are always shown as plain text.
+  * Oversized replies from upload servers are refused.
+  * The instance socket ignores malformed input and uses a per-user name outside the runtime directory.
+  * GNOME shortcuts work for app paths containing spaces or quotes.
+
+ -- Rana Uzair Ahmad <dynamo89247@gmail.com>  Sat, 17 Oct 2026 22:54:03 +0500
+
 snapline (0.2.0-1) unstable; urgency=medium
 
   * Annotations can be moved, edited, restyled and deleted after drawing.

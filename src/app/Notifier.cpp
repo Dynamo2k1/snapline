@@ -4,6 +4,7 @@
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDBusReply>
 #include <QGuiApplication>
 #include <QSystemTrayIcon>
 
@@ -29,8 +30,10 @@ void Notifier::notify(const QString &title, const QString &body, std::function<v
     if (onClick)
         actions << QStringLiteral("default") << tr("Open");
     const QVariantMap hints{{QStringLiteral("desktop-entry"), QGuiApplication::desktopFileName()}};
+    // Bodies hold paths, links and server messages; "&" or "<" in them must not be read as markup.
+    const QString shownBody = serverParsesMarkup() ? body.toHtmlEscaped() : body;
     message << QGuiApplication::applicationDisplayName() << uint(0) << QGuiApplication::desktopFileName() << title
-            << body << actions << hints << int(5000);
+            << shownBody << actions << hints << int(5000);
 
     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
@@ -45,6 +48,17 @@ void Notifier::notify(const QString &title, const QString &body, std::function<v
                 if (onClick)
                     m_callbacks.insert(reply.value(), onClick);
             });
+}
+
+bool Notifier::serverParsesMarkup()
+{
+    if (m_markup < 0) {
+        const QDBusMessage call =
+            QDBusMessage::createMethodCall(kService, kPath, kService, QStringLiteral("GetCapabilities"));
+        const QDBusReply<QStringList> reply = QDBusConnection::sessionBus().call(call, QDBus::Block, 1000);
+        m_markup = reply.isValid() && reply.value().contains(QStringLiteral("body-markup")) ? 1 : 0;
+    }
+    return m_markup == 1;
 }
 
 void Notifier::onActionInvoked(uint id, const QString &actionKey)

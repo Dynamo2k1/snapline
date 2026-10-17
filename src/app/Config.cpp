@@ -1,6 +1,7 @@
 #include "app/Config.h"
 
 #include <QDir>
+#include <QFile>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -23,6 +24,13 @@ QString defaultSaveDirectory()
     if (pictures.isEmpty())
         pictures = QDir::homePath();
     return QDir(pictures).filePath(QStringLiteral("Screenshots"));
+}
+
+// Upload settings can hold API tokens (custom headers), so only the owner may read the file.
+void makePrivate(const QSettings &s)
+{
+    if (QFile::exists(s.fileName()))
+        QFile::setPermissions(s.fileName(), QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
 } // namespace
@@ -88,6 +96,7 @@ Config Config::load()
     c.customLinkPath = s.value(QStringLiteral("custom_link_path")).toString();
     s.endGroup();
 
+    makePrivate(s);
     return c;
 }
 
@@ -139,6 +148,8 @@ void Config::save() const
     s.setValue(QStringLiteral("custom_form_fields"), customFormFields);
     s.setValue(QStringLiteral("custom_link_path"), customLinkPath);
     s.endGroup();
+    s.sync();
+    makePrivate(s);
 }
 
 } // namespace snapline

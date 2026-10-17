@@ -26,7 +26,7 @@ History::History()
     for (const QJsonValue &v : array) {
         const QJsonObject o = v.toObject();
         const QUrl url(o.value(QStringLiteral("url")).toString());
-        if (url.isValid())
+        if (url.isValid() && (url.scheme() == QLatin1String("https") || url.scheme() == QLatin1String("http")))
             m_entries.push_back({QDateTime::fromString(o.value(QStringLiteral("time")).toString(), Qt::ISODate), url});
     }
 }
@@ -59,6 +59,7 @@ void History::save() const
     QDir().mkpath(QFileInfo(m_path).absolutePath());
     QSaveFile file(m_path);
     if (file.open(QIODevice::WriteOnly)) {
+        file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner); // upload links are private
         file.write(QJsonDocument(array).toJson(QJsonDocument::Compact));
         file.commit();
     }

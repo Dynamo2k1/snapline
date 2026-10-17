@@ -25,7 +25,8 @@ QToolButton::menu-indicator { image: none; }
 QToolButton *makeButton(QWidget *parent, const QString &icon, const QString &tip)
 {
     auto *button = new QToolButton(parent);
-    button->setIcon(QIcon(QStringLiteral(":/icons/%1.svg").arg(icon)));
+    if (!icon.isEmpty())
+        button->setIcon(QIcon(QStringLiteral(":/icons/%1.svg").arg(icon)));
     button->setIconSize(QSize(20, 20));
     button->setToolTip(tip);
     button->setFocusPolicy(Qt::NoFocus);

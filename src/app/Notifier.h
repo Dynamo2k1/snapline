@@ -22,7 +22,10 @@ private slots:
     void onClosed(uint id, uint reason);
 
 private:
+    bool serverParsesMarkup();
+
     QPointer<QSystemTrayIcon> m_fallback;
+    int m_markup = -1; // unknown until asked
     QHash<uint, std::function<void()>> m_callbacks;
 };
 

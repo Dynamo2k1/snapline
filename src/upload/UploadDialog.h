@@ -18,7 +18,7 @@ class UploadDialog : public QDialog {
     Q_OBJECT
 
 public:
-    UploadDialog(Uploader *uploader, const QByteArray &data, const QString &mimeType, const QString &fileName,
+    UploadDialog(Uploader *uploader, const QByteArray &imageData, const QString &mimeType, const QString &fileName,
                  bool autoClose, QWidget *parent = nullptr);
     void start();
 

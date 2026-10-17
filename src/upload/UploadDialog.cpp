@@ -13,9 +13,9 @@
 
 namespace snapline {
 
-UploadDialog::UploadDialog(Uploader *uploader, const QByteArray &data, const QString &mimeType,
+UploadDialog::UploadDialog(Uploader *uploader, const QByteArray &imageData, const QString &mimeType,
                            const QString &fileName, bool autoClose, QWidget *parent)
-    : QDialog(parent), m_uploader(uploader), m_data(data), m_mimeType(mimeType), m_fileName(fileName),
+    : QDialog(parent), m_uploader(uploader), m_data(imageData), m_mimeType(mimeType), m_fileName(fileName),
       m_autoClose(autoClose)
 {
     setWindowTitle(tr("Uploading image"));
@@ -26,6 +26,7 @@ UploadDialog::UploadDialog(Uploader *uploader, const QByteArray &data, const QSt
     auto *layout = new QVBoxLayout(this);
     m_status = new QLabel(this);
     m_status->setWordWrap(true);
+    m_status->setTextFormat(Qt::PlainText); // shows error text from the server
     m_progress = new QProgressBar(this);
     m_link = new QLineEdit(this);
     m_link->setReadOnly(true);

@@ -1,6 +1,6 @@
 name: snapline
 base: core24
-version: '0.2.0'
+version: '0.2.1'
 summary: Region screenshot tool with annotation and upload
 description: |
   Press a hotkey, drag over the part of the screen you want, mark it up with

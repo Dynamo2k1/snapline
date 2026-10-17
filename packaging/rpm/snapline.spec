@@ -1,5 +1,5 @@
 Name:           snapline
-Version:        0.2.0
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Region screenshot tool with annotation and upload
 License:        GPL-3.0-or-later
@@ -56,6 +56,14 @@ QT_QPA_PLATFORM=offscreen %ctest
 %{_datadir}/icons/hicolor/scalable/apps/io.github.snapline.Snapline.svg
 
 %changelog
+* Sat Oct 17 2026 Rana Uzair Ahmad <dynamo89247@gmail.com> - 0.2.1-1
+- Upload settings and history are now readable only by you (they can hold API tokens and private links)
+- Notifications show links and file names containing & or < correctly
+- Upload error messages from servers are always shown as plain text
+- Oversized replies from upload servers are refused
+- The instance socket ignores malformed input and uses a per-user name outside the runtime directory
+- GNOME shortcuts work for app paths containing spaces or quotes
+
 * Sat Oct 17 2026 Rana Uzair Ahmad <dynamo89247@gmail.com> - 0.2.0-1
 - Annotations can be moved, edited, restyled and deleted after drawing
 - Hotkeys set in Settings work on GNOME (Wayland and X11)

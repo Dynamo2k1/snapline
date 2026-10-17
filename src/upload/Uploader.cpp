@@ -15,6 +15,9 @@ namespace snapline {
 
 namespace {
 
+// Replies are small JSON or a bare link; anything bigger is a broken or hostile server.
+constexpr qint64 kMaxReplyBytes = 1024 * 1024;
+
 QHttpPart filePart(const QString &field, const QByteArray &data, const QString &mimeType, const QString &fileName)
 {
     QHttpPart part;
@@ -177,10 +180,20 @@ void Uploader::upload(const QByteArray &data, const QString &mimeType, const QSt
     m_reply = reply;
 
     connect(reply, &QNetworkReply::uploadProgress, this, &Uploader::progress);
+    connect(reply, &QNetworkReply::downloadProgress, reply, [reply](qint64 received, qint64) {
+        if (received > kMaxReplyBytes) {
+            reply->setProperty("snapline_too_large", true);
+            reply->abort();
+        }
+    });
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() == QNetworkReply::OperationCanceledError && m_reply != reply)
             return;
+        if (reply->property("snapline_too_large").toBool()) {
+            emit failed(tr("The server sent an unexpectedly large reply."), QString());
+            return;
+        }
         const QByteArray body = reply->readAll();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QString details = QStringLiteral("HTTP %1\n%2\n\n%3")
