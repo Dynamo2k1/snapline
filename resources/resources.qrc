@@ -1,0 +1,19 @@
+<!DOCTYPE RCC><RCC version="1.0"><qresource prefix="/icons">
+  <file alias="arrow.svg">icons/arrow.svg</file>
+  <file alias="blur.svg">icons/blur.svg</file>
+  <file alias="circle.svg">icons/circle.svg</file>
+  <file alias="close.svg">icons/close.svg</file>
+  <file alias="copy.svg">icons/copy.svg</file>
+  <file alias="line.svg">icons/line.svg</file>
+  <file alias="marker.svg">icons/marker.svg</file>
+  <file alias="pen.svg">icons/pen.svg</file>
+  <file alias="print.svg">icons/print.svg</file>
+  <file alias="rect.svg">icons/rect.svg</file>
+  <file alias="redo.svg">icons/redo.svg</file>
+  <file alias="save.svg">icons/save.svg</file>
+  <file alias="share.svg">icons/share.svg</file>
+  <file alias="snapline.svg">icons/snapline.svg</file>
+  <file alias="text.svg">icons/text.svg</file>
+  <file alias="undo.svg">icons/undo.svg</file>
+  <file alias="upload.svg">icons/upload.svg</file>
+</qresource></RCC>

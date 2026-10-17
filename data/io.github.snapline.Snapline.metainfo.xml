@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.snapline.Snapline</id>
+  <name>Snapline</name>
+  <summary>Region screenshots with annotation and upload</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Press a hotkey, drag over the part of the screen you want, mark it up, then copy it, save it,
+      print it or upload it and get a link in your clipboard.
+    </p>
+    <ul>
+      <li>Pen, line, arrow, rectangle, circle, marker, text and blur tools with undo/redo</li>
+      <li>Copy, save, print, or upload to Imgur or your own server</li>
+      <li>Share links and reverse image search</li>
+      <li>Works on X11 and Wayland (GNOME, KDE, Sway, Hyprland), multi-monitor and HiDPI</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.snapline.Snapline.desktop</launchable>
+  <provides>
+    <binary>snapline</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-17"/>
+  </releases>
+</component>

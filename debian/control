@@ -1,0 +1,29 @@
+Source: snapline
+Section: graphics
+Priority: optional
+Maintainer: Snapline Maintainers <maintainers@snapline.invalid>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.21),
+               ninja-build,
+               pkgconf,
+               qt6-base-dev (>= 6.4),
+               qt6-svg-dev,
+               libgl-dev,
+               libx11-dev,
+               libxcb1-dev,
+               libxcb-xfixes0-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/Dynamo2k1/snapline
+Rules-Requires-Root: no
+
+Package: snapline
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, qt6-svg-plugins | libqt6svg6
+Recommends: wl-clipboard, xdg-desktop-portal, optipng
+Suggests: grim
+Description: region screenshot tool with annotation and upload
+ Press a hotkey, drag over the part of the screen you want, mark it up with
+ pen, line, arrow, rectangle, circle, marker, text and blur tools, then copy
+ it, save it, print it or upload it to Imgur or your own server.
+ .
+ Works on X11 and Wayland (GNOME, KDE, wlroots compositors).

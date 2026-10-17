@@ -1,0 +1,33 @@
+# Maintainer: Snapline Maintainers <maintainers@snapline.invalid>
+pkgname=snapline
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Region screenshot tool with annotation and upload"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Dynamo2k1/snapline"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-svg' 'libxcb' 'libx11')
+makedepends=('cmake' 'ninja')
+optdepends=('wl-clipboard: reliable clipboard on Wayland'
+            'xdg-desktop-portal: screen capture and hotkeys on GNOME/KDE Wayland'
+            'grim: screen capture on Sway, Hyprland and other wlroots compositors'
+            'optipng: smaller PNG files')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=ON
+  cmake --build build
+}
+
+check() {
+  QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 "$pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

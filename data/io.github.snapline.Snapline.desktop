@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=Snapline
+GenericName=Screenshot Tool
+Comment=Select an area of the screen, annotate it, then copy, save or upload it
+Exec=snapline
+Icon=io.github.snapline.Snapline
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=screenshot;screen;capture;snip;annotate;upload;
+StartupNotify=false
+Actions=Capture;Settings;
+
+[Desktop Action Capture]
+Name=Take a Screenshot
+Exec=snapline gui
+
+[Desktop Action Settings]
+Name=Settings
+Exec=snapline settings

@@ -1,0 +1,126 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:24.04', 'ubuntu:26.04', 'debian:trixie']
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build .deb (runs the tests)
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential devscripts equivs
+          mk-build-deps -i -r -t 'apt-get -y --no-install-recommends' debian/control
+          dpkg-buildpackage -b -us -uc
+          mkdir -p dist && mv ../*.deb dist/
+      - name: Install and smoke-test
+        run: |
+          apt-get install -y ./dist/snapline_*.deb
+          QT_QPA_PLATFORM=offscreen snapline --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ strategy.job-index }}
+          path: dist/*.deb
+
+  rpm:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['fedora:latest', 'opensuse/tumbleweed']
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - name: Tools
+        run: |
+          if command -v dnf; then dnf install -y rpm-build rpmdevtools tar git 'dnf-command(builddep)';
+          else zypper -n install rpm-build rpmdevtools tar git; fi
+      - uses: actions/checkout@v4
+      - name: Build .rpm (runs the tests)
+        run: |
+          rpmdev-setuptree
+          version=$(rpmspec -q --qf '%{version}\n' packaging/rpm/snapline.spec | head -1)
+          git config --global --add safe.directory "$PWD"
+          git archive --prefix="snapline-$version/" -o ~/rpmbuild/SOURCES/snapline-$version.tar.gz HEAD
+          if command -v dnf; then dnf builddep -y packaging/rpm/snapline.spec;
+          else zypper -n install $(rpmspec -q --buildrequires packaging/rpm/snapline.spec | tr '\n' ' '); fi
+          rpmbuild -ba packaging/rpm/snapline.spec
+          mkdir -p dist && cp ~/rpmbuild/RPMS/*/snapline-*.rpm dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ strategy.job-index }}
+          path: dist/*.rpm
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Tools
+        run: pacman -Syu --noconfirm base-devel git cmake ninja qt6-base qt6-svg libxcb libx11
+      - uses: actions/checkout@v4
+      - name: Build package (runs the tests)
+        run: |
+          useradd -m builder
+          version=$(grep -oP '^pkgver=\K.*' packaging/arch/PKGBUILD)
+          git config --global --add safe.directory "$PWD"
+          mkdir -p /tmp/pkg && cp packaging/arch/PKGBUILD /tmp/pkg/
+          git archive --prefix="snapline-$version/" -o /tmp/pkg/snapline-$version.tar.gz HEAD
+          chown -R builder /tmp/pkg
+          cd /tmp/pkg && sudo -u builder makepkg --noconfirm
+          mkdir -p "$GITHUB_WORKSPACE/dist" && cp /tmp/pkg/*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: dist/*.pkg.tar.zst
+
+  appimage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkgconf qt6-base-dev qt6-svg-dev qt6-wayland libgl-dev \
+            libx11-dev libxcb1-dev libxcb-xfixes0-dev libfuse2 file
+      - name: Build AppImage
+        run: packaging/appimage/build-appimage.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: dist/*.AppImage
+
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.9
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: snapline.flatpak
+          manifest-path: packaging/flatpak/io.github.snapline.Snapline.yml
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, rpm, arch, appimage, flatpak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

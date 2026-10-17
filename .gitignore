@@ -1,0 +1,9 @@
+build/
+.flatpak-builder/
+*.AppImage
+*.deb
+*.rpm
+*.pkg.tar.zst
+/dist/
+build-release/
+packaging/appimage/.tools/
