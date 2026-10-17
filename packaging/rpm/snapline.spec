@@ -7,21 +7,22 @@ URL:            https://github.com/Dynamo2k1/snapline
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cmake >= 3.21
-BuildRequires:  ninja-build
 BuildRequires:  gcc-c++
-BuildRequires:  pkgconfig(Qt6Widgets) >= 6.4
-BuildRequires:  pkgconfig(Qt6Svg)
-BuildRequires:  pkgconfig(Qt6DBus)
-BuildRequires:  pkgconfig(Qt6Network)
-BuildRequires:  pkgconfig(Qt6PrintSupport)
+BuildRequires:  cmake(Qt6Widgets) >= 6.4
+BuildRequires:  cmake(Qt6Svg)
+BuildRequires:  cmake(Qt6DBus)
+BuildRequires:  cmake(Qt6Network)
+BuildRequires:  cmake(Qt6PrintSupport)
 BuildRequires:  cmake(Qt6Test)
 BuildRequires:  pkgconfig(xcb)
 BuildRequires:  pkgconfig(xcb-xfixes)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  desktop-file-utils
-BuildRequires:  libappstream-glib
+BuildRequires:  /usr/bin/appstream-util
 
+%if 0%{?fedora}
 Requires:       qt6-qtsvg
+%endif
 Recommends:     wl-clipboard
 Recommends:     xdg-desktop-portal
 Recommends:     optipng
@@ -37,7 +38,7 @@ and Wayland (GNOME, KDE, wlroots compositors).
 %autosetup -n %{name}-%{version}
 
 %build
-%cmake -G Ninja -DBUILD_TESTING=ON
+%cmake -DBUILD_TESTING=ON
 %cmake_build
 
 %install
@@ -45,7 +46,7 @@ and Wayland (GNOME, KDE, wlroots compositors).
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.snapline.Snapline.desktop
-appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/io.github.snapline.Snapline.metainfo.xml
+appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/io.github.snapline.Snapline.metainfo.xml
 QT_QPA_PLATFORM=offscreen %ctest
 
 %files
@@ -53,7 +54,7 @@ QT_QPA_PLATFORM=offscreen %ctest
 %doc README.md
 %{_bindir}/snapline
 %{_datadir}/applications/io.github.snapline.Snapline.desktop
-%{_metainfodir}/io.github.snapline.Snapline.metainfo.xml
+%{_datadir}/metainfo/io.github.snapline.Snapline.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/io.github.snapline.Snapline.svg
 
 %changelog

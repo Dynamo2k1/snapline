@@ -28,6 +28,8 @@ Snapline is an independent, open-source project. It is not affiliated with Light
 
 ## Install
 
+Download from the [latest release](https://github.com/Dynamo2k1/snapline/releases/latest).
+
 | Distribution | Package |
 |---|---|
 | Debian, Ubuntu, Mint, Pop!_OS | `.deb` from Releases (PPA planned) |

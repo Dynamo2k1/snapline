@@ -10,6 +10,7 @@ trap 'rm -rf "$work"' EXIT
 arch="$(uname -m)"
 
 mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 cmake -S "$root" -B "$work/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF
 cmake --build "$work/build"
 DESTDIR="$work/AppDir" cmake --install "$work/build"

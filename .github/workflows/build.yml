@@ -22,7 +22,10 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential devscripts equivs
           mk-build-deps -i -r -t 'apt-get -y --no-install-recommends' debian/control
           dpkg-buildpackage -b -us -uc
-          mkdir -p dist && mv ../*.deb dist/
+          # Every matrix image produces the same file name; tag each with its distro.
+          . /etc/os-release
+          mkdir -p dist
+          for f in ../snapline_*.deb; do b=$(basename "$f" .deb); mv "$f" "dist/${b}_${ID}${VERSION_ID}.deb"; done
       - name: Install and smoke-test
         run: |
           apt-get install -y ./dist/snapline_*.deb
@@ -52,9 +55,17 @@ jobs:
           git config --global --add safe.directory "$PWD"
           git archive --prefix="snapline-$version/" -o ~/rpmbuild/SOURCES/snapline-$version.tar.gz HEAD
           if command -v dnf; then dnf builddep -y packaging/rpm/snapline.spec;
-          else zypper -n install $(rpmspec -q --buildrequires packaging/rpm/snapline.spec | tr '\n' ' '); fi
+          else rpmspec -q --buildrequires packaging/rpm/snapline.spec | xargs -d '\n' zypper -n install; fi
           rpmbuild -ba packaging/rpm/snapline.spec
-          mkdir -p dist && cp ~/rpmbuild/RPMS/*/snapline-*.rpm dist/
+          mkdir -p dist
+          for f in ~/rpmbuild/RPMS/*/snapline-[0-9]*.rpm; do
+            b=$(basename "$f" .rpm); a=${b##*.}
+            # openSUSE has no %dist tag, so mark its build in the file name.
+            case "$b" in
+              *.fc[0-9]*) cp "$f" dist/ ;;
+              *) cp "$f" "dist/${b%.$a}.opensuse.$a.rpm" ;;
+            esac
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: rpm-${{ strategy.job-index }}
@@ -76,7 +87,7 @@ jobs:
           git archive --prefix="snapline-$version/" -o /tmp/pkg/snapline-$version.tar.gz HEAD
           chown -R builder /tmp/pkg
           cd /tmp/pkg && sudo -u builder makepkg --noconfirm
-          mkdir -p "$GITHUB_WORKSPACE/dist" && cp /tmp/pkg/*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
+          mkdir -p "$GITHUB_WORKSPACE/dist" && cp /tmp/pkg/snapline-[0-9]*.pkg.tar.zst "$GITHUB_WORKSPACE/dist/"
       - uses: actions/upload-artifact@v4
         with:
           name: arch
@@ -117,10 +128,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+      - name: Checksums
+        run: cd artifacts && sha256sum * > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
+          name: Snapline ${{ github.ref_name }}
+          body_path: .github/release-notes.md
+          generate_release_notes: true
           files: artifacts/*
