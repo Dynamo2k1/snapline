@@ -18,13 +18,18 @@ SingleInstance::SingleInstance(QObject *parent) : QObject(parent)
     m_name = QDir(dir).filePath(name);
 }
 
-bool SingleInstance::sendToRunning(const QString &command)
+bool SingleInstance::sendToRunning(const QString &command, const QString &activationToken)
 {
     QLocalSocket socket;
     socket.connectToServer(m_name);
     if (!socket.waitForConnected(500))
         return false;
-    socket.write(command.toUtf8() + '\n');
+    // "command<TAB>token": the token lets the running instance raise a window the user asked for.
+    QByteArray line = command.toUtf8();
+    const QString token = activationToken.simplified();
+    if (!token.isEmpty() && !token.contains(QLatin1Char('\t')))
+        line += '\t' + token.toUtf8();
+    socket.write(line + '\n');
     socket.waitForBytesWritten(1000);
     socket.disconnectFromServer();
     return true;
@@ -44,15 +49,16 @@ bool SingleInstance::listen()
         while (QLocalSocket *socket = m_server->nextPendingConnection()) {
             connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
             connect(socket, &QLocalSocket::readyRead, this, [this, socket]() {
-                // Commands are a single short word; drop clients that send anything else.
-                if (!socket->canReadLine() && socket->bytesAvailable() > 256) {
+                // Commands are one short line; drop clients that send anything else.
+                if (!socket->canReadLine() && socket->bytesAvailable() > 1024) {
                     socket->abort();
                     return;
                 }
                 while (socket->canReadLine()) {
-                    const QString command = QString::fromUtf8(socket->readLine()).trimmed();
+                    const QString line = QString::fromUtf8(socket->readLine()).trimmed();
+                    const QString command = line.section(QLatin1Char('\t'), 0, 0);
                     if (!command.isEmpty())
-                        emit commandReceived(command);
+                        emit commandReceived(command, line.section(QLatin1Char('\t'), 1, 1));
                 }
             });
         }

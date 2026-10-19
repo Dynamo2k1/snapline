@@ -12,11 +12,11 @@ class SingleInstance : public QObject {
 
 public:
     explicit SingleInstance(QObject *parent = nullptr);
-    bool sendToRunning(const QString &command);
+    bool sendToRunning(const QString &command, const QString &activationToken = QString());
     bool listen();
 
 signals:
-    void commandReceived(const QString &command);
+    void commandReceived(const QString &command, const QString &activationToken);
 
 private:
     QString m_name;

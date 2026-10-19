@@ -21,6 +21,8 @@ Notifier::Notifier(QSystemTrayIcon *fallback, QObject *parent) : QObject(parent)
     bus.connect(kService, kPath, kService, QStringLiteral("ActionInvoked"), this,
                 SLOT(onActionInvoked(uint, QString)));
     bus.connect(kService, kPath, kService, QStringLiteral("NotificationClosed"), this, SLOT(onClosed(uint, uint)));
+    bus.connect(kService, kPath, kService, QStringLiteral("ActivationToken"), this,
+                SLOT(onActivationToken(uint, QString)));
 }
 
 void Notifier::notify(const QString &title, const QString &body, std::function<void()> onClick)
@@ -65,15 +67,28 @@ void Notifier::onActionInvoked(uint id, const QString &actionKey)
 {
     Q_UNUSED(actionKey)
     const auto callback = m_callbacks.take(id);
+    // Sent just before the click; lets the callback's window take focus on Wayland.
+    const QString token = m_tokens.take(id);
+    if (callback && !token.isEmpty())
+        qputenv("XDG_ACTIVATION_TOKEN", token.toUtf8());
     if (callback)
         callback();
+}
+
+void Notifier::onActivationToken(uint id, const QString &token)
+{
+    if (m_callbacks.contains(id))
+        m_tokens.insert(id, token);
 }
 
 void Notifier::onClosed(uint id, uint reason)
 {
     Q_UNUSED(reason)
     // Some servers send NotificationClosed before ActionInvoked; give the action a moment to arrive.
-    QMetaObject::invokeMethod(this, [this, id]() { m_callbacks.remove(id); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(this, [this, id]() {
+        m_callbacks.remove(id);
+        m_tokens.remove(id);
+    }, Qt::QueuedConnection);
 }
 
 } // namespace snapline

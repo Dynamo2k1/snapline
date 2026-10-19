@@ -10,6 +10,9 @@
 
 int main(int argc, char *argv[])
 {
+    // The desktop hands a launched program a token that lets it raise a window; read it before Qt
+    // consumes it so a running instance can use it instead.
+    const QString activationToken = qEnvironmentVariable("XDG_ACTIVATION_TOKEN");
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("snapline"));
     QApplication::setOrganizationName(QStringLiteral("snapline"));
@@ -43,7 +46,7 @@ int main(int argc, char *argv[])
 
     snapline::SingleInstance instance;
     // Launching again while running (e.g. from the app menu) takes a screenshot.
-    if (instance.sendToRunning(command.isEmpty() ? QStringLiteral("gui") : command))
+    if (instance.sendToRunning(command.isEmpty() ? QStringLiteral("gui") : command, activationToken))
         return 0;
     if (command == QLatin1String("quit"))
         return 0;

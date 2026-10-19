@@ -16,17 +16,23 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QPainter>
 #include <QPrintDialog>
 #include <QPrinter>
+#include <QPushButton>
 #include <QSystemTrayIcon>
+#include <QTimer>
 #include <QUrlQuery>
+#include <QVBoxLayout>
 
 namespace snapline {
 
@@ -98,8 +104,9 @@ void Application::start()
         m_tray->setToolTip(QApplication::applicationDisplayName());
 }
 
-void Application::handleCommand(const QString &command)
+void Application::handleCommand(const QString &command, const QString &activationToken)
 {
+    m_activationToken = activationToken;
     if (command == QLatin1String("gui"))
         captureInteractive();
     else if (command == QLatin1String("full"))
@@ -129,7 +136,85 @@ void Application::grab(std::function<void(const Capture &)> then)
         if (!message.isEmpty())
             error(message);
     });
+    connect(grabber, &ScreenGrabber::permissionDenied, this, [this, grabber, then]() {
+        grabber->deleteLater();
+        m_grabbing = false;
+        askScreenshotPermission(then);
+    });
     grabber->grab(m_config.captureCursor);
+}
+
+void Application::askScreenshotPermission(std::function<void(const Capture &)> then)
+{
+    if (m_permissionDialog) {
+        bringToFront(m_permissionDialog);
+        return;
+    }
+    auto *dialog = new QDialog;
+    m_permissionDialog = dialog;
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Screenshot permission"));
+    auto *layout = new QVBoxLayout(dialog);
+    auto *text = new QLabel(tr("Your desktop has to allow Snapline to take screenshots.\n\n"
+                               "Click the button below, then choose Allow in the window that appears. "
+                               "You only need to do this once."),
+                            dialog);
+    text->setWordWrap(true);
+    auto *status = new QLabel(dialog);
+    status->setWordWrap(true);
+    status->setTextFormat(Qt::PlainText);
+    auto *buttons = new QDialogButtonBox(dialog);
+    QPushButton *allow = buttons->addButton(tr("Allow screenshots…"), QDialogButtonBox::AcceptRole);
+    buttons->addButton(QDialogButtonBox::Cancel);
+    layout->addWidget(text);
+    layout->addWidget(status);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+
+    // The click focuses this window, which is what lets the desktop show its own question.
+    connect(allow, &QPushButton::clicked, dialog, [this, dialog, allow, status, then]() {
+        allow->setEnabled(false);
+        status->setText(tr("Waiting for your answer in the desktop's window…"));
+        ScreenGrabber *grabber = ScreenGrabber::create(QStringLiteral("portal"), dialog);
+        grabber->setUserMayBeAsked(true);
+        connect(grabber, &ScreenGrabber::finished, dialog, [this, dialog, then](const Capture &) {
+            // That picture shows this window; take the real one once it is gone.
+            dialog->close();
+            QTimer::singleShot(400, this, [this, then]() { grab(then); });
+        });
+        connect(grabber, &ScreenGrabber::permissionDenied, dialog, [allow, status]() {
+            status->setText(tr("The desktop did not allow it. Click the button to try again."));
+            allow->setEnabled(true);
+        });
+        connect(grabber, &ScreenGrabber::failed, dialog, [allow, status](const QString &message) {
+            status->setText(message.isEmpty() ? tr("Cancelled.") : message);
+            allow->setEnabled(true);
+        });
+        grabber->grab(false);
+    });
+    dialog->show();
+    bringToFront(dialog);
+    // Without a token from the hotkey the desktop may keep the window behind others; a notification
+    // click brings its own token.
+    if (m_activationToken.isEmpty() && ScreenGrabber::isWayland()) {
+        notify(tr("Screenshot permission needed"), tr("Click here, then allow Snapline to take screenshots."),
+               [this]() {
+                   if (m_permissionDialog)
+                       bringToFront(m_permissionDialog);
+               });
+    }
+}
+
+void Application::bringToFront(QWidget *window)
+{
+    // On Wayland only a token from a user action lets a window take focus; Qt uses it from the
+    // environment when activating.
+    if (!m_activationToken.isEmpty()) {
+        qputenv("XDG_ACTIVATION_TOKEN", m_activationToken.toUtf8());
+        m_activationToken.clear();
+    }
+    window->raise();
+    window->activateWindow();
 }
 
 void Application::captureInteractive()

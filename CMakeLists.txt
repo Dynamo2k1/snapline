@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(snapline VERSION 0.2.1 DESCRIPTION "Region screenshot tool with annotation and upload" LANGUAGES CXX)
+project(snapline VERSION 0.2.2 DESCRIPTION "Region screenshot tool with annotation and upload" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

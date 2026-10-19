@@ -19,6 +19,7 @@ public:
 
 private slots:
     void onActionInvoked(uint id, const QString &actionKey);
+    void onActivationToken(uint id, const QString &token);
     void onClosed(uint id, uint reason);
 
 private:
@@ -27,6 +28,7 @@ private:
     QPointer<QSystemTrayIcon> m_fallback;
     int m_markup = -1; // unknown until asked
     QHash<uint, std::function<void()>> m_callbacks;
+    QHash<uint, QString> m_tokens;
 };
 
 } // namespace snapline

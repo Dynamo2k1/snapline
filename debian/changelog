@@ -1,3 +1,12 @@
+snapline (0.2.2-1) unstable; urgency=medium
+
+  * Fix "The desktop refused the screenshot request" on GNOME: Snapline now opens a window to ask for screenshot permission once.
+  * Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission.
+  * Windows raised from a hotkey or notification come to the front on Wayland.
+  * If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead.
+
+ -- Rana Uzair Ahmad <dynamo89247@gmail.com>  Tue, 20 Oct 2026 01:02:42 +0500
+
 snapline (0.2.1-1) unstable; urgency=medium
 
   * Upload settings and history are now readable only by you (they can hold API tokens and private links).

@@ -196,10 +196,15 @@ bool apply(const QList<HotkeyBinding> &list, const QString &program, bool replac
     }
     settings.setValue(QStringLiteral("gnome/released_keys"), released);
 
-    // GNOME splits the command like a shell does, so single-quote the path whatever it contains.
+    // GNOME splits the command like a shell does, so quote paths with special characters. Plain paths
+    // stay unquoted: GNOME names the launched app after the first word, and the desktop's screenshot
+    // permission is stored under that name, so quotes there would make a new, unknown app.
+    static const QRegularExpression plain(QStringLiteral("^[A-Za-z0-9_./+-]+$"));
     QString quotedProgram = program;
-    quotedProgram.replace(QLatin1Char('\''), QStringLiteral("'\\''"));
-    quotedProgram = QLatin1Char('\'') + quotedProgram + QLatin1Char('\'');
+    if (!plain.match(quotedProgram).hasMatch()) {
+        quotedProgram.replace(QLatin1Char('\''), QStringLiteral("'\\''"));
+        quotedProgram = QLatin1Char('\'') + quotedProgram + QLatin1Char('\'');
+    }
 
     QStringList paths = parseList(get(kMediaKeys, kCustomList));
     const QStringList pathsBefore = paths;

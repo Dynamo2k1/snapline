@@ -1,5 +1,5 @@
 Name:           snapline
-Version:        0.2.1
+Version:        0.2.2
 Release:        1%{?dist}
 Summary:        Region screenshot tool with annotation and upload
 License:        GPL-3.0-or-later
@@ -56,6 +56,12 @@ QT_QPA_PLATFORM=offscreen %ctest
 %{_datadir}/icons/hicolor/scalable/apps/io.github.snapline.Snapline.svg
 
 %changelog
+* Tue Oct 20 2026 Rana Uzair Ahmad <dynamo89247@gmail.com> - 0.2.2-1
+- Fix "The desktop refused the screenshot request" on GNOME: Snapline now opens a window to ask for screenshot permission once
+- Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission
+- Windows raised from a hotkey or notification come to the front on Wayland
+- If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead
+
 * Sat Oct 17 2026 Rana Uzair Ahmad <dynamo89247@gmail.com> - 0.2.1-1
 - Upload settings and history are now readable only by you (they can hold API tokens and private links)
 - Notifications show links and file names containing & or < correctly

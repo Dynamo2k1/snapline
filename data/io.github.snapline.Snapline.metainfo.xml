@@ -28,6 +28,16 @@
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.2" date="2026-10-20">
+      <description>
+        <ul>
+          <li>Fix &quot;The desktop refused the screenshot request&quot; on GNOME: Snapline now opens a window to ask for screenshot permission once</li>
+          <li>Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission</li>
+          <li>Windows raised from a hotkey or notification come to the front on Wayland</li>
+          <li>If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-10-17">
       <description>
         <p>Security and reliability fixes.</p>

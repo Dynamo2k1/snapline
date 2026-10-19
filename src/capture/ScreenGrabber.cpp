@@ -12,6 +12,9 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
+#include <QWindow>
+
+#include <memory>
 
 #ifdef SNAPLINE_HAVE_X11
 #include <QtGui/qguiapplication_platform.h>
@@ -118,6 +121,41 @@ public:
     }
 };
 
+// Works on GNOME/mutter, where grim (wlroots-only) does not -- verified
+// directly on this system (`flameshot full --raw` returns a real PNG on
+// stdout, exit 0, no hang, where the raw portal call hangs indefinitely).
+class FlameshotGrabber : public ScreenGrabber {
+public:
+    using ScreenGrabber::ScreenGrabber;
+    QString name() const override { return QStringLiteral("flameshot"); }
+
+    void grab(bool includeCursor) override
+    {
+        Q_UNUSED(includeCursor); // flameshot's CLI has no cursor-inclusion flag for `full`
+        auto *process = new QProcess(this);
+        connect(process, &QProcess::finished, this, [this, process](int code, QProcess::ExitStatus status) {
+            process->deleteLater();
+            const QByteArray data = process->readAllStandardOutput();
+            if (status != QProcess::NormalExit || code != 0) {
+                emit failed(tr("flameshot failed: %1").arg(QString::fromLocal8Bit(process->readAllStandardError()).trimmed()));
+                return;
+            }
+            const Capture capture = Capture::fromDesktopImage(QImage::fromData(data, "PNG"), screenLayout());
+            if (capture.isNull())
+                emit failed(tr("flameshot returned no image."));
+            else
+                emit finished(capture);
+        });
+        connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError e) {
+            if (e != QProcess::FailedToStart)
+                return;
+            process->deleteLater();
+            emit failed(tr("Could not start flameshot. Install it or choose another capture backend."));
+        });
+        process->start(QStringLiteral("flameshot"), {QStringLiteral("full"), QStringLiteral("--raw")});
+    }
+};
+
 class PortalGrabber : public ScreenGrabber {
 public:
     using ScreenGrabber::ScreenGrabber;
@@ -128,18 +166,53 @@ public:
         const QVariantMap options{{QStringLiteral("interactive"), false}, {QStringLiteral("modal"), false}};
         auto *request = PortalRequest::call(QStringLiteral("org.freedesktop.portal.Screenshot"),
                                             QStringLiteral("Screenshot"), {QString(), options}, this);
-        connect(request, &PortalRequest::error, this, [this, request, includeCursor](const QString &message) {
-            request->deleteLater();
-            if (!QStandardPaths::findExecutable(QStringLiteral("grim")).isEmpty()) {
-                fallBackToGrim(includeCursor);
+
+        // The portal request has no built-in deadline. On some desktop
+        // implementations (observed: xdg-desktop-portal-gnome mishandling an
+        // empty parent_window -- this app has no visible window at the point
+        // it requests a screenshot, so it always passes one -- as an internal
+        // Wayland protocol error instead of a normal failure), the request
+        // never emits either `error` or `finished`: it just hangs forever,
+        // and neither handler below ever runs. A caller-side timeout is the
+        // only way to recover from a portal that silently drops the request
+        // rather than reporting one. 5s is generous for a working portal
+        // (interactive=false, so no consent dialog is expected here) while
+        // still being well short of "the user thinks the hotkey did nothing."
+        auto done = std::make_shared<bool>(false);
+        auto *timeout = new QTimer(this);
+        timeout->setSingleShot(true);
+        connect(timeout, &QTimer::timeout, this, [this, request, done, includeCursor]() {
+            if (*done)
                 return;
-            }
-            emit failed(tr("The screenshot portal is not available: %1").arg(message));
+            *done = true;
+            request->disconnect(this);
+            request->deleteLater();
+            fallBackToSubprocessGrabber(includeCursor, tr("the screenshot portal did not respond"));
         });
-        connect(request, &PortalRequest::finished, this, [this, request](uint response, const QVariantMap &results) {
+        if (!m_userMayBeAsked)
+            timeout->start(5000);
+
+        connect(request, &PortalRequest::error, this, [this, request, done, timeout, includeCursor](const QString &message) {
+            if (*done)
+                return;
+            *done = true;
+            timeout->deleteLater();
+            request->deleteLater();
+            fallBackToSubprocessGrabber(includeCursor, message);
+        });
+        connect(request, &PortalRequest::finished, this, [this, request, done, timeout](uint response, const QVariantMap &results) {
+            if (*done)
+                return;
+            *done = true;
+            timeout->deleteLater();
             request->deleteLater();
             if (response == 1) {
                 emit failed(QString());
+                return;
+            }
+            if (response == 2) {
+                // GNOME has no stored answer for this app and only asks a focused app, so it refused.
+                emit permissionDenied();
                 return;
             }
             const QString path = QUrl(results.value(QStringLiteral("uri")).toString()).toLocalFile();
@@ -158,18 +231,34 @@ public:
     }
 
 private:
-    void fallBackToGrim(bool includeCursor)
+    // Tries grim first (wlroots compositors), then flameshot (works on GNOME/mutter,
+    // where grim does not -- verified directly on this system), before giving up.
+    void fallBackToSubprocessGrabber(bool includeCursor, const QString &portalMessage)
     {
-        auto *grim = new GrimGrabber(this);
-        connect(grim, &ScreenGrabber::finished, this, [this, grim](const Capture &c) {
-            grim->deleteLater();
+        if (!QStandardPaths::findExecutable(QStringLiteral("grim")).isEmpty()) {
+            fallBackTo(new GrimGrabber(this), includeCursor);
+            return;
+        }
+        if (!QStandardPaths::findExecutable(QStringLiteral("flameshot")).isEmpty()) {
+            fallBackTo(new FlameshotGrabber(this), includeCursor);
+            return;
+        }
+        emit failed(portalMessage.isEmpty()
+                         ? tr("The screenshot portal is not available, and neither grim nor flameshot is installed.")
+                         : tr("The screenshot portal is not available (%1), and neither grim nor flameshot is installed.").arg(portalMessage));
+    }
+
+    void fallBackTo(ScreenGrabber *grabber, bool includeCursor)
+    {
+        connect(grabber, &ScreenGrabber::finished, this, [this, grabber](const Capture &c) {
+            grabber->deleteLater();
             emit finished(c);
         });
-        connect(grim, &ScreenGrabber::failed, this, [this, grim](const QString &m) {
-            grim->deleteLater();
+        connect(grabber, &ScreenGrabber::failed, this, [this, grabber](const QString &m) {
+            grabber->deleteLater();
             emit failed(m);
         });
-        grim->grab(includeCursor);
+        grabber->grab(includeCursor);
     }
 };
 

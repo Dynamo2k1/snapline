@@ -9,6 +9,8 @@
 #include <QPointer>
 #include <functional>
 
+class QDialog;
+class QWidget;
 class QMenu;
 class QNetworkAccessManager;
 class QSystemTrayIcon;
@@ -32,12 +34,14 @@ public:
 
 public slots:
     // gui | full | full-upload | settings | quit | ping
-    void handleCommand(const QString &command);
+    void handleCommand(const QString &command, const QString &activationToken = QString());
 
 private:
     void captureInteractive();
     void captureFullScreen(bool upload);
     void grab(std::function<void(const Capture &)> then);
+    void askScreenshotPermission(std::function<void(const Capture &)> then);
+    void bringToFront(QWidget *window);
     void onCaptureFinished(Action action, const QImage &image, const QRect &selection);
 
     void copyImage(const QImage &image);
@@ -62,6 +66,8 @@ private:
     QNetworkAccessManager *m_network = nullptr;
     QPointer<CaptureController> m_capture;
     QPointer<SettingsDialog> m_settings;
+    QPointer<QDialog> m_permissionDialog;
+    QString m_activationToken; // from the launch that sent the current command
     bool m_grabbing = false;
     bool m_hotkeyWarningShown = false;
 };
