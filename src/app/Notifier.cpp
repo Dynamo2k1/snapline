@@ -7,12 +7,14 @@
 #include <QDBusReply>
 #include <QGuiApplication>
 #include <QSystemTrayIcon>
+#include <QTimer>
 
 namespace snapline {
 
 namespace {
 const QString kService = QStringLiteral("org.freedesktop.Notifications");
 const QString kPath = QStringLiteral("/org/freedesktop/Notifications");
+constexpr int kBriefMs = 1000;
 } // namespace
 
 Notifier::Notifier(QSystemTrayIcon *fallback, QObject *parent) : QObject(parent), m_fallback(fallback)
@@ -25,21 +27,24 @@ Notifier::Notifier(QSystemTrayIcon *fallback, QObject *parent) : QObject(parent)
                 SLOT(onActivationToken(uint, QString)));
 }
 
-void Notifier::notify(const QString &title, const QString &body, std::function<void()> onClick)
+void Notifier::notify(const QString &title, const QString &body, std::function<void()> onClick, bool brief)
 {
     QDBusMessage message = QDBusMessage::createMethodCall(kService, kPath, kService, QStringLiteral("Notify"));
     QStringList actions;
     if (onClick)
         actions << QStringLiteral("default") << tr("Open");
-    const QVariantMap hints{{QStringLiteral("desktop-entry"), QGuiApplication::desktopFileName()}};
+    QVariantMap hints{{QStringLiteral("desktop-entry"), QGuiApplication::desktopFileName()}};
+    if (brief)
+        hints.insert(QStringLiteral("transient"), true);
     // Bodies hold paths, links and server messages; "&" or "<" in them must not be read as markup.
     const QString shownBody = serverParsesMarkup() ? body.toHtmlEscaped() : body;
-    message << QGuiApplication::applicationDisplayName() << uint(0) << QGuiApplication::desktopFileName() << title
-            << shownBody << actions << hints << int(5000);
+    message << QGuiApplication::applicationDisplayName() << (brief ? m_briefId : uint(0))
+            << QGuiApplication::desktopFileName() << title << shownBody << actions << hints
+            << int(brief ? kBriefMs : 5000);
 
     auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, watcher, title, body, onClick](QDBusPendingCallWatcher *) {
+            [this, watcher, title, body, onClick, brief](QDBusPendingCallWatcher *) {
                 watcher->deleteLater();
                 const QDBusPendingReply<uint> reply = *watcher;
                 if (reply.isError()) {
@@ -47,9 +52,25 @@ void Notifier::notify(const QString &title, const QString &body, std::function<v
                         m_fallback->showMessage(title, body);
                     return;
                 }
+                const uint id = reply.value();
                 if (onClick)
-                    m_callbacks.insert(reply.value(), onClick);
+                    m_callbacks.insert(id, onClick);
+                if (brief) {
+                    m_briefId = id;
+                    // GNOME ignores the timeout above, so close it ourselves.
+                    QTimer::singleShot(kBriefMs, this, [this, id]() { close(id); });
+                }
             });
+}
+
+void Notifier::close(uint id)
+{
+    if (id == m_briefId)
+        m_briefId = 0;
+    QDBusMessage message =
+        QDBusMessage::createMethodCall(kService, kPath, kService, QStringLiteral("CloseNotification"));
+    message << id;
+    QDBusConnection::sessionBus().asyncCall(message);
 }
 
 bool Notifier::serverParsesMarkup()

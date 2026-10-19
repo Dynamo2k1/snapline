@@ -54,6 +54,7 @@ private:
     void applyConfig(const Config &config);
     void rebuildTrayMenu();
     void notify(const QString &title, const QString &body, std::function<void()> onClick = {});
+    void status(const QString &title, const QString &body, std::function<void()> onClick = {});
     void error(const QString &message);
     void showAbout();
 

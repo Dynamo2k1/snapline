@@ -4,6 +4,7 @@ snapline (0.2.2-1) unstable; urgency=medium
   * Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission.
   * Windows raised from a hotkey or notification come to the front on Wayland.
   * If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead.
+  * Copied, saved and uploaded notices disappear after 1 second and are not kept in the notification list.
 
  -- Rana Uzair Ahmad <dynamo89247@gmail.com>  Tue, 20 Oct 2026 01:02:42 +0500
 

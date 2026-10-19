@@ -35,6 +35,7 @@
           <li>Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission</li>
           <li>Windows raised from a hotkey or notification come to the front on Wayland</li>
           <li>If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead</li>
+          <li>Copied, saved and uploaded notices disappear after 1 second and are not kept in the notification list</li>
         </ul>
       </description>
     </release>

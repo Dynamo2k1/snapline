@@ -272,7 +272,7 @@ void Application::onCaptureFinished(Action action, const QImage &image, const QR
 void Application::copyImage(const QImage &image)
 {
     Clipboard::setImage(image);
-    notify(tr("Screenshot copied"), tr("Your screenshot is in the clipboard."));
+    status(tr("Screenshot copied"), tr("Your screenshot is in the clipboard."));
 }
 
 void Application::saveImage(const QImage &image, bool askForPath)
@@ -310,7 +310,7 @@ void Application::saveImage(const QImage &image, bool askForPath)
         error(tr("Could not save %1: %2").arg(path, err));
         return;
     }
-    notify(tr("Screenshot saved"), tr("Saved to %1. Click to open the folder.").arg(path),
+    status(tr("Screenshot saved"), tr("Saved to %1. Click to open the folder.").arg(path),
            [path]() { revealInFileManager(path); });
 }
 
@@ -361,7 +361,7 @@ void Application::uploadImage(const QImage &image, std::function<void(const QUrl
         if (then) {
             then(url);
         } else {
-            notify(tr("Screenshot uploaded"),
+            status(tr("Screenshot uploaded"),
                    m_config.autoCopyLink ? tr("The link is in your clipboard: %1").arg(url.toString()) : url.toString(),
                    [url]() { QDesktopServices::openUrl(url); });
         }
@@ -454,7 +454,7 @@ void Application::rebuildTrayMenu()
             recent->addAction(e.time.toString(QStringLiteral("yyyy-MM-dd HH:mm")) + QStringLiteral("  ") + url.toString(),
                               this, [this, url]() {
                                   Clipboard::setText(url.toString());
-                                  notify(tr("Link copied"), url.toString(), [url]() { QDesktopServices::openUrl(url); });
+                                  status(tr("Link copied"), url.toString(), [url]() { QDesktopServices::openUrl(url); });
                               });
         }
         recent->addSeparator();
@@ -472,6 +472,12 @@ void Application::notify(const QString &title, const QString &body, std::functio
 {
     if (m_config.showNotifications)
         m_notifier->notify(title, body, std::move(onClick));
+}
+
+void Application::status(const QString &title, const QString &body, std::function<void()> onClick)
+{
+    if (m_config.showNotifications)
+        m_notifier->notify(title, body, std::move(onClick), true);
 }
 
 void Application::error(const QString &message)

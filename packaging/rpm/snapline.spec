@@ -61,6 +61,7 @@ QT_QPA_PLATFORM=offscreen %ctest
 - Hotkey launches keep a normal app name, so GNOME remembers the screenshot permission
 - Windows raised from a hotkey or notification come to the front on Wayland
 - If the screenshot portal does not answer within 5 seconds, grim or Flameshot is used instead
+- Copied, saved and uploaded notices disappear after 1 second and are not kept in the notification list
 
 * Sat Oct 17 2026 Rana Uzair Ahmad <dynamo89247@gmail.com> - 0.2.1-1
 - Upload settings and history are now readable only by you (they can hold API tokens and private links)
